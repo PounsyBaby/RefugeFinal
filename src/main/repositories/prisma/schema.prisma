@@ -1,0 +1,495 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ====================
+// TABLES DE REFERENCE
+// ====================
+
+model Personne {
+  id_personne    Int       @id @default(autoincrement())
+  nom            String    @db.VarChar(255)
+  prenom         String    @db.VarChar(255)
+  email          String    @unique @db.VarChar(191)
+  tel            String?   @db.VarChar(100)
+  date_naissance DateTime? @db.Date
+  jardin         Boolean?  @default(false)
+  rue            String?   @db.VarChar(255)
+  numero         String?   @db.VarChar(50)
+  code_postal    String?   @db.VarChar(20)
+  ville          String?   @db.VarChar(255)
+  pays           String?   @db.VarChar(255)
+  type_personne  TypePersonne?
+
+  entrees         Entree[]
+  demandes        DemandeAdoption[]
+  rendezVous      RendezVous[]
+  adoptions       Adoption[]
+  familleAccueil  FamilleAccueil[]
+
+  @@map("personne")
+}
+
+enum TypePersonne {
+  prospect
+  adoptant
+  fa
+  donateur
+  multiple
+}
+
+model Utilisateur {
+  id_user         Int       @id @default(autoincrement())
+  nom             String    @db.VarChar(255)
+  prenom          String    @db.VarChar(255)
+  email           String    @unique @db.VarChar(191)
+  motdepasse_hash String    @db.VarChar(255)
+  role            RoleUtilisateur @default(agent)
+  actif           Boolean   @default(true)
+
+  notesComportement NoteComportement[]
+  visitesDomicile   VisiteDomicile[]
+  rendezVous        RendezVous[]
+
+  @@map("utilisateur")
+}
+
+enum RoleUtilisateur {
+  admin
+  agent
+  benevole
+  veto_ext
+}
+
+model Espece {
+  id_espece Int    @id @default(autoincrement())
+  libelle   String @unique @db.VarChar(191)
+
+  races   Race[]
+  animaux Animal[]
+
+  @@map("espece")
+}
+
+model Race {
+  id_race   Int    @id @default(autoincrement())
+  id_espece Int
+  libelle   String @db.VarChar(191)
+
+  espece      Espece       @relation(fields: [id_espece], references: [id_espece])
+  animalRaces AnimalRace[]
+
+  @@unique([id_espece, libelle])
+  @@map("race")
+}
+
+// ==============
+// NOYAU ANIMAL
+// ==============
+
+model Animal {
+  id_animal          Int       @id @default(autoincrement())
+  nom_usuel          String?   @db.VarChar(255)
+  id_espece          Int
+  sexe               Sexe?
+  date_naissance     DateTime? @db.Date
+  date_arrivee       DateTime  @db.Date
+  statut             StatutAnimal @default(arrive)
+  couleur_robe       String?   @db.VarChar(255)
+  poids_kg           Decimal?  @db.Decimal(6, 2)
+  sterilise          Boolean   @default(false)
+  date_sterilisation DateTime? @db.Date
+  microchip_no       String?   @unique @db.VarChar(191)
+  description        String?   @db.Text
+
+  espece             Espece               @relation(fields: [id_espece], references: [id_espece])
+  races              AnimalRace[]
+  emplacements       AnimalEmplacement[]
+  entrees            Entree[]
+  evenementsMedicaux EvenementMedical[]
+  notesComportement  NoteComportement[]
+  demandes           DemandeAnimal[]
+  rendezVous         RendezVous[]
+  reservations       Reservation[]
+  adoptions          Adoption[]
+  placementsFa       PlacementFa[]
+  documents          Document[]
+
+  @@index([statut])
+  @@index([id_espece])
+  @@map("animal")
+}
+
+enum Sexe {
+  M
+  F
+  Inconnu
+}
+
+enum StatutAnimal {
+  arrive
+  quarantaine
+  soin
+  adoptable
+  reserve
+  adopte
+  en_FA
+  transfere
+  decede
+  indisponible
+}
+
+model AnimalRace {
+  id_animal   Int
+  id_race     Int
+  pourcentage Int?
+
+  animal Animal @relation(fields: [id_animal], references: [id_animal], onDelete: Cascade)
+  race   Race   @relation(fields: [id_race], references: [id_race])
+
+  @@id([id_animal, id_race])
+  @@map("animal_race")
+}
+
+model Emplacement {
+  id_emplacement Int     @id @default(autoincrement())
+  code           String  @unique @db.VarChar(191)
+  type           String  @db.VarChar(255)
+  capacite       Int
+  actif          Boolean @default(true)
+
+  animaux AnimalEmplacement[]
+
+  @@map("emplacement")
+}
+
+model AnimalEmplacement {
+  id_animal      Int
+  id_emplacement Int
+  date_debut     DateTime @db.Date
+  date_fin       DateTime? @db.Date
+
+  animal      Animal      @relation(fields: [id_animal], references: [id_animal], onDelete: Cascade)
+  emplacement Emplacement @relation(fields: [id_emplacement], references: [id_emplacement])
+
+  @@id([id_animal, date_debut])
+  @@map("animal_emplacement")
+}
+
+model Entree {
+  id_entree       Int        @id @default(autoincrement())
+  id_animal       Int
+  date_entree     DateTime   @db.Date
+  type            TypeEntree
+  source_personne Int?
+  details         String?    @db.Text
+
+  animal   Animal    @relation(fields: [id_animal], references: [id_animal], onDelete: Cascade)
+  personne Personne? @relation(fields: [source_personne], references: [id_personne])
+
+  @@map("entree")
+}
+
+enum TypeEntree {
+  abandon
+  trouve
+  saisie
+  transfert
+  autre
+}
+
+model Veterinaire {
+  id_vet      Int     @id @default(autoincrement())
+  nom_cabinet String  @db.VarChar(255)
+  contact     String? @db.VarChar(255)
+  adresse     String? @db.VarChar(255)
+
+  evenementsMedicaux EvenementMedical[]
+
+  @@map("veterinaire")
+}
+
+model EvenementMedical {
+  id_evt         Int           @id @default(autoincrement())
+  id_animal      Int
+  type           TypeEvenement
+  sous_type      String?       @db.VarChar(255)
+  date_evt       DateTime      @db.Date
+  date_validite  DateTime?     @db.Date
+  id_veterinaire Int?
+  notes          String?       @db.Text
+
+  animal      Animal       @relation(fields: [id_animal], references: [id_animal], onDelete: Cascade)
+  veterinaire Veterinaire? @relation(fields: [id_veterinaire], references: [id_vet])
+
+  @@map("evenement_medical")
+}
+
+enum TypeEvenement {
+  vaccin
+  vermifuge
+  test
+  chirurgie
+  consultation
+  traitement
+}
+
+model NoteComportement {
+  id_note     Int      @id @default(autoincrement())
+  id_animal   Int
+  date_note   DateTime @default(dbgenerated("(CURRENT_DATE)")) @db.Date
+  ok_chiens   Boolean?
+  ok_chats    Boolean?
+  ok_enfants  Boolean?
+  score       Int?
+  id_user     Int
+  commentaire String?  @db.Text
+
+  animal      Animal      @relation(fields: [id_animal], references: [id_animal], onDelete: Cascade)
+  utilisateur Utilisateur @relation(fields: [id_user], references: [id_user])
+
+  @@map("note_comportement")
+}
+
+// ==================
+// PROCESSUS ADOPTION
+// ==================
+
+model DemandeAdoption {
+  id_demande         Int           @id @default(autoincrement())
+  id_personne        Int
+  date_depot         DateTime      @default(dbgenerated("(CURRENT_DATE)")) @db.Date
+  statut             StatutDemande @default(soumise)
+  type_logement      String?       @db.VarChar(255)
+  jardin             Boolean?
+  accord_proprio     Boolean?
+  enfants            Boolean?
+  autres_animaux     String?       @db.VarChar(255)
+  experience_animaux String?       @db.Text
+  preferences        String?       @db.Text
+  commentaire        String?       @db.Text
+
+  personne        Personne         @relation(fields: [id_personne], references: [id_personne])
+  animauxDemandes DemandeAnimal[]
+  visitesDomicile VisiteDomicile[]
+  reservations    Reservation[]
+  documents       Document[]
+
+  @@index([statut])
+  @@map("demande_adoption")
+}
+
+enum StatutDemande {
+  soumise
+  en_etude
+  approuvee
+  refusee
+  expiree
+  annulee
+}
+
+model DemandeAnimal {
+  id_demande Int
+  id_animal  Int
+  priorite   Int?
+
+  demande DemandeAdoption @relation(fields: [id_demande], references: [id_demande], onDelete: Cascade)
+  animal  Animal          @relation(fields: [id_animal], references: [id_animal])
+
+  @@id([id_demande, id_animal])
+  @@map("demande_animal")
+}
+
+model VisiteDomicile {
+  id_visite   Int          @id @default(autoincrement())
+  id_demande  Int
+  date_visite DateTime     @db.Date
+  statut      StatutVisite
+  id_user     Int
+  notes       String?      @db.Text
+
+  demande     DemandeAdoption @relation(fields: [id_demande], references: [id_demande], onDelete: Cascade)
+  utilisateur Utilisateur     @relation(fields: [id_user], references: [id_user])
+
+  @@map("visite_domicile")
+}
+
+enum StatutVisite {
+  favorable
+  defavorable
+  conditionnel
+}
+
+model RendezVous {
+  id_rdv      Int       @id @default(autoincrement())
+  id_personne Int
+  id_animal   Int?
+  date_heure  DateTime
+  type        TypeRdv
+  statut      StatutRdv @default(planifie)
+  id_user     Int
+  notes       String?   @db.Text
+
+  personne    Personne    @relation(fields: [id_personne], references: [id_personne])
+  animal      Animal?     @relation(fields: [id_animal], references: [id_animal])
+  utilisateur Utilisateur @relation(fields: [id_user], references: [id_user])
+
+  @@map("rendez_vous")
+}
+
+enum TypeRdv {
+  visite
+  rencontre
+  adoption
+}
+
+enum StatutRdv {
+  planifie
+  honore
+  annule
+  no_show
+}
+
+model Reservation {
+  id_reservation Int               @id @default(autoincrement())
+  id_animal      Int
+  id_demande     Int
+  date_debut     DateTime          @db.Date
+  date_fin       DateTime?         @db.Date
+  statut         StatutReservation @default(active)
+  motif          String?           @db.Text
+
+  animal  Animal          @relation(fields: [id_animal], references: [id_animal])
+  demande DemandeAdoption @relation(fields: [id_demande], references: [id_demande], onDelete: Cascade)
+
+  @@index([id_animal])
+  @@index([id_demande])
+  @@map("reservation")
+}
+
+enum StatutReservation {
+  active
+  expiree
+  annulee
+  convertie
+}
+
+model Adoption {
+  id_adoption              Int            @id @default(autoincrement())
+  numero_contrat           String         @unique @db.VarChar(191)
+  id_animal                Int
+  id_personne              Int
+  date_contrat             DateTime       @db.Date
+  frais_total              Decimal        @default(0) @db.Decimal(10, 2)
+  statut                   StatutAdoption @default(brouillon)
+  conditions_particulieres String?        @db.Text
+
+  animal             Animal              @relation(fields: [id_animal], references: [id_animal])
+  personne           Personne            @relation(fields: [id_personne], references: [id_personne])
+  paiements          Paiement[]
+  retourPostAdoption RetourPostAdoption?
+  documents          Document[]
+
+  @@index([statut])
+  @@map("adoption")
+}
+
+enum StatutAdoption {
+  brouillon
+  finalisee
+  annulee
+  retour
+}
+
+model Paiement {
+  id_paiement   Int          @id @default(autoincrement())
+  id_adoption   Int
+  date_paiement DateTime     @default(dbgenerated("(CURRENT_DATE)")) @db.Date
+  montant       Decimal      @db.Decimal(10, 2)
+  mode          ModePaiement
+  reference     String?      @db.VarChar(255)
+
+  adoption Adoption @relation(fields: [id_adoption], references: [id_adoption], onDelete: Cascade)
+
+  @@map("paiement")
+}
+
+enum ModePaiement {
+  especes
+  carte
+  virement
+}
+
+model RetourPostAdoption {
+  id_retour    Int         @id @default(autoincrement())
+  id_adoption  Int         @unique
+  date_retour  DateTime    @db.Date
+  motif        String?     @db.VarChar(255)
+  suite        SuiteRetour?
+  commentaires String?     @db.Text
+
+  adoption Adoption @relation(fields: [id_adoption], references: [id_adoption], onDelete: Cascade)
+
+  @@map("retour_post_adoption")
+}
+
+enum SuiteRetour {
+  repropose
+  transfert
+  decede
+  autre
+}
+
+model FamilleAccueil {
+  id_fa         Int      @id @default(autoincrement())
+  id_personne   Int
+  date_agrement DateTime @db.Date
+  statut        StatutFa @default(active)
+  notes         String?  @db.Text
+
+  personne   Personne      @relation(fields: [id_personne], references: [id_personne])
+  placements PlacementFa[]
+
+  @@map("famille_accueil")
+}
+
+enum StatutFa {
+  active
+  suspendue
+  terminee
+}
+
+model PlacementFa {
+  id_placement Int       @id @default(autoincrement())
+  id_animal    Int
+  id_fa        Int
+  date_debut   DateTime  @db.Date
+  date_fin     DateTime? @db.Date
+  notes        String?   @db.Text
+
+  animal         Animal         @relation(fields: [id_animal], references: [id_animal])
+  familleAccueil FamilleAccueil @relation(fields: [id_fa], references: [id_fa])
+
+  @@map("placement_fa")
+}
+
+model Document {
+  id_doc      Int      @id @default(autoincrement())
+  id_animal   Int?
+  id_adoption Int?
+  id_demande  Int?
+  type_doc    String   @db.VarChar(255)
+  uri         String   @db.VarChar(512)
+  date_doc    DateTime @default(dbgenerated("(CURRENT_DATE)")) @db.Date
+
+  animal   Animal?          @relation(fields: [id_animal], references: [id_animal])
+  adoption Adoption?        @relation(fields: [id_adoption], references: [id_adoption])
+  demande  DemandeAdoption? @relation(fields: [id_demande], references: [id_demande])
+
+  @@map("document")
+}
